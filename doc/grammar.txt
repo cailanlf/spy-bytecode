@@ -1,0 +1,63 @@
+program = 
+    | statement*
+
+statement = 
+    | let_statement
+    | expression
+    ;
+
+expression = 
+    | prefix_unary_expression
+    | binary_expression
+    | assignment_expression
+    | dot_expression
+    | seal_expression
+    | freeze_expression
+    | delete_expression
+    | atom
+    ;
+
+prefix_unary_expression = 
+    | ('-' | '+') !whitespace expression
+
+binary_expression =
+    | expression ('+' | '-' | '/' | '*' | '.') expression
+    ;
+
+assignment_expression =
+    | 'var'? assignment_left_expression '=' expression
+    ;
+
+assignment_left_expression =
+    | identifier
+    | dot_expression
+
+seal_expression = 
+    | 'seal' expression
+    ;
+
+freeze_expression =
+    | 'freeze' expression
+    ;
+
+delete_expression = 
+    | 'delete' expression
+    ;
+
+dot_expression = 
+    | identifier ('.' identifier)*
+    ;
+
+whitespace = ' ' | '\t' | '\n' | '\r';
+
+atom = 
+    | number_literal
+    | string_literal
+    | object_literal
+    ;
+
+number_literal = '0-9'+;
+object_literal = object_modifier? '{' object_literal_entry* '}';
+object_literal_entry = assignment_expression;
+
+object_modifier = 'sealed' | 'frozen';

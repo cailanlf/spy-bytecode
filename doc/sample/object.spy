@@ -1,0 +1,52 @@
+# Implements the Object prototype.
+# All objects in the language are implicitly children of Object.
+
+let Object = frozen {
+    # Checks if this object is frozen.
+    # @return `true` if the object is frozen, otherwise false.
+    is_frozen = ():
+        __internal.object.is_frozen(this)
+    end
+
+    # Checks if this object is sealed.
+    # @return `true` if the object is sealed, otherwise false.
+    is_sealed = ():
+        __internal.object.is_sealed(this)
+    end
+
+    # Creates an identical copy of this object at a new location in memory.
+    #
+    # Note that this also copies the frozen / sealed status of an object. If you
+    # wish to copy all of the properties instead, use @see{copy_to}
+    clone = ():
+        var object = {}
+        
+        for key, val in this:
+            is_var = this.is_var(key)
+            object.set(key, val, var=is_var)
+        end
+        
+        if this.is_frozen():
+            object = freeze object
+        elif this.is_sealed():
+            object = seal object
+        end
+        
+        object
+    end
+
+    # Get a hash code identifying this object. Hash codes are between 0 and 2^63 - 1
+    hash = ():
+        # Defer to an internal implementation for smart caching.
+        __internal.object.hash(this)
+
+    # Check if two objects are equal. Objects are considered equal by default if
+    # they share the same memory location.
+    # @param other The object to compare to.
+    equals = (other):
+        this_location = __internal.object.get_memory_location(this)
+        other_location = __internal.object.get_memory_location(other)
+        
+        this_location == other_location
+    end
+}
