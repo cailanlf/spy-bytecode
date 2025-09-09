@@ -35,6 +35,8 @@ class Lexer():
                 self.emit('operator', 1)
             elif next in ['(', ')', '{', '}', '[', ']']:
                 self.emit('parenthesis', 1)
+            elif next == ',':
+                self.emit('comma', 1)
             elif next == "#":
                 while self.pos < len(self.input) and self.input[self.pos] != '\n':
                     self.pos += 1
