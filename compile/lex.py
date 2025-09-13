@@ -1,4 +1,5 @@
-from typing import Literal, NamedTuple
+from typing import Literal
+from dataclasses import dataclass
 
 TokenType = Literal[
     'number',
@@ -8,12 +9,16 @@ TokenType = Literal[
     'operator',
     'parenthesis',
     'comma',
+    'eof'
 ]
 
-class Token(NamedTuple):
+@dataclass
+class Token():
     type: TokenType
     value: str
     whitespace_before: bool
+    whitespace_after: bool
+    position: tuple[int, int]
 
 class Lexer():
     input: str
@@ -53,6 +58,7 @@ class Lexer():
             else: 
                 raise Exception(f"Unexpected character: {next}")
 
+        self.tokens.append(Token('eof', '', False, False, (self.pos, self.pos)))
         return self.tokens 
     
     def lex_number(self):
@@ -94,7 +100,10 @@ class Lexer():
         self.emit('string', index + 1 - self.pos) # + 1 to include closing quote
     
     def emit(self, type: TokenType, length: int):
-        token = Token(type, self.input[self.pos:self.pos+length], self.whitespace_before)
+        if len(self.tokens) > 0:
+            self.tokens[-1].whitespace_after = self.whitespace_before
+        token = Token(type, self.input[self.pos:self.pos+length], self.whitespace_before, False, 
+                      (self.pos, self.pos + length))
         self.tokens.append(token)
         self.pos += length
         self.whitespace_before = False
