@@ -13,6 +13,7 @@ class Parser():
     precedence_multiplicative = 1
     precedence_additive = 2
     precedence_member_access = 3
+    precedence_comparison = 4
 
     @staticmethod
     def binary_left_associative_powers(power):
@@ -49,6 +50,8 @@ class Parser():
             return Parser.binary_left_associative_powers(Parser.precedence_additive)
         elif token.value == ".":
             return Parser.binary_left_associative_powers(Parser.precedence_member_access)
+        elif token.value in ("==", "!=", "<", ">", "<=", ">="):
+            return Parser.binary_left_associative_powers(Parser.precedence_comparison)
         else:
             return (0, 0)
     #
@@ -81,7 +84,12 @@ class Parser():
         }
     
     def parse_expression(self):
-        return self.parse_expression_power(0)
+        res = self.parse_expression_power(0)
+
+        if self.peek().type == "parenthesis" and self.peek().value == "(":
+            return self.parse_call_expression(callee=res)
+        else: return res
+        
     
     # Binary / unary disambiguation:
     # Operators that are not separated from their operand by a whitespace are 
@@ -98,6 +106,8 @@ class Parser():
 
         if prefix_precedence != 0 and prefix_precedence >= min_precedence:
             operator = self.expect("operator")
+            if self.peek().whitespace_before:
+                raise self.error(f"while parsing prefix unary operator: unexpected whitespace before {self.peek()}, expected unary operator or atomic expression")
             operand = self.parse_expression_power(prefix_precedence)
             left = {
                 "type": "unary_expression",
@@ -105,8 +115,6 @@ class Parser():
                 "operand": operand,
             }
         else:
-            if self.peek().whitespace_before:
-                raise self.error(f"while parsing prefix unary operator: unexpected whitespace before {self.peek()}, expected unary operator or atomic expression")
             left = self.parse_atomic_expression()
 
         while True:
@@ -161,10 +169,121 @@ class Parser():
                 "value": value.value,
             }
         elif self.peek().type == "keyword" and self.peek().value in ("frozen", "sealed") \
-                or self.peek().type == "punctuation" and self.peek().value == "{":
+                or self.peek().type == "parenthesis" and self.peek().value == "{":
             return self.parse_object_literal()
+        elif self.peek().type == "identifier":
+            value = self.expect("identifier")
+            return {
+                "type": "identifier",
+                "value": value.value,
+            }
+        elif self.peek().type == "keyword" and self.peek().value == "if":
+            return self.parse_if_else_expression()
         else:
             raise self.error(f"while parsing atomic: unexpected token {self.peek()}, expected atomic expression")
+    
+    def parse_if_else_expression(self):
+        """
+            if_else_expression =
+                | "if" expression ":" statement* ("elif" expression ":" statement*)* ("end" | ("else" expression ":" statement* "end"))
+        """
+
+        
+        self.expect("keyword", "if")
+        condition = self.parse_expression()
+        self.expect("punctuation", ":")
+
+        blocks = []
+        statements = []
+
+        while not (self.peek().type == "keyword" and self.peek().value in {"elif", "else", "end"}):
+            statements.append(self.parse_statement())
+
+        blocks.append({
+            "condition": condition,
+            "body": statements,
+        })
+
+        while self.peek().type == "keyword" and self.peek().value == "elif":
+            self.expect("keyword", "elif")
+            condition = self.parse_expression()
+            self.expect("punctuation", ":")
+            statements = []
+
+            while not (self.peek().type == "keyword" and self.peek().value in {"elif", "else", "end"}):
+                statements.append(self.parse_statement())
+            
+            blocks.append({
+                "condition": condition,
+                "body": statements,
+            })
+
+        if self.peek().type == "keyword" and self.peek().value == "else":
+            self.expect("keyword", "else")
+            self.expect("punctuation", ":")
+            statements = []
+
+            while not (self.peek().type == "keyword" and self.peek().value == "end"):
+                statements.append(self.parse_statement())
+            
+            blocks.append({
+                "condition": None,
+                "body": statements,
+            })
+
+        self.expect("keyword", "end")
+
+        return {
+            "type": "if_else_expression",
+            "conditions": blocks,
+        }
+
+       
+    
+    def parse_call_expression(self, callee=None):
+        """
+            call_expression =
+                | expression "(" ((expression comma)* expression)? ")"
+        """
+
+        if callee is None:
+            callee = self.parse_expression()
+        self.expect("parenthesis", "(")
+
+        arguments = []
+        if not (self.peek().type == "parenthesis" and self.peek().value == ")"):
+            while True:
+                arguments.append(self.parse_expression())
+                if self.peek().type == "comma":
+                    self.expect("comma")
+                else:
+                    break
+
+        self.expect("parenthesis", ")")
+
+        return {
+            "type": "call_expression",
+            "callee": callee,
+            "arguments": arguments,
+        }
+
+    def parse_block(self):
+        """
+            block = 
+            | ":" statement* "end"
+        """
+        self.expect("punctuation", ":")
+        statements = []
+
+        while not (self.peek().type == "keyword" and self.peek().value == "end"):
+            statements.append(self.parse_statement())
+        
+        self.expect("keyword", "end")
+
+        return {
+            "type": "block",
+            "statements": statements,
+        }
 
     def parse_object_literal(self):
         """
@@ -174,22 +293,55 @@ class Parser():
         """
         modifier = None
 
-        if self.peek().type == "keyword" and self.peek().value in ("frozen", "sealed"):
-            modifier = self.expect("keyword")
+        if self.peek().type == "keyword" and self.peek().value in {"frozen", "sealed"}:
+            match self.peek().value:
+                case "frozen":
+                    modifier = "frozen"
+                case "sealed":
+                    modifier = "sealed"
+                case _:
+                    raise self.error(f"Unexpected modifier {self.peek().value}, expected 'frozen' or 'sealed'")
+            self.expect("keyword")
         
-        self.expect("punctuation", "{")
+        self.expect("parenthesis", "{")
 
         entries = []
 
-        while not (self.peek().type == "punctuation" and self.peek().value == "}"):
+        while not (self.peek().type == "parenthesis" and self.peek().value == "}"):
             entries.append(self.parse_object_literal_entry())
 
-        self.expect("punctuation", "}")
+        self.expect("parenthesis", "}")
 
         return {
             "type": "object_literal",
             "modifier": modifier,
             "entries": entries,
+        }
+    
+    def parse_object_literal_entry(self):
+        """
+            object_literal_entry = 
+                | "var"? identifier "=" expression
+                ;
+        """
+        is_var = False
+
+        if self.peek().type == "keyword" and self.peek().value == "var":
+            self.expect("keyword", "var")
+            is_var = True
+        
+        name = self.expect("identifier")
+        self.expect("operator", "=")
+        value = self.parse_expression()
+
+        if self.peek().type == "comma":
+            self.expect("comma")
+
+        return {
+            "type": "object_literal_entry",
+            "is_var": is_var,
+            "name": name.value,
+            "value": value,
         }
 
     def peek(self, offset=0):

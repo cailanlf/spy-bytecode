@@ -36,8 +36,13 @@ class Lexer():
                 self.whitespace_before = True
                 self.pos += 1
                 continue
-            elif next in ['+', '-', '*', '/', '=', '.']:
+            elif next in ['+', '-', '*', '/', '%', '.']:
                 self.emit('operator', 1)
+            elif next in ['=', '!', '<', '>']:
+                if self.pos + 1 < len(self.input) and self.input[self.pos + 1] == '=':
+                    self.emit('operator', 2)
+                else:
+                    self.emit('operator', 1)
             elif next in ['(', ')', '{', '}', '[', ']']:
                 self.emit('parenthesis', 1)
             elif next == ',':
@@ -52,7 +57,7 @@ class Lexer():
             elif next == '"' or next == "'":
                 self.lex_string()
             elif next == ':':
-                self.emit('keyword', 1)
+                self.emit('punctuation', 1)
             elif next.isdigit():
                 self.lex_number()
             else: 
@@ -73,7 +78,7 @@ class Lexer():
             index += 1
         value = self.input[self.pos:index]
 
-        if value in ["let", "var", "end", "freeze", "seal"]:
+        if value in {"let", "var", "end", "freeze", "seal", "frozen", "sealed", "if", "else"}:
             self.emit('keyword', index - self.pos)
         else:
             self.emit('identifier', index - self.pos)

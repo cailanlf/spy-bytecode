@@ -10,7 +10,8 @@ expression =
     | prefix_unary_expression
     | binary_expression
     | assignment_expression
-    | dot_expression
+    | if_else_expression
+    | call_expression
     | seal_expression
     | freeze_expression
     | delete_expression
@@ -31,6 +32,16 @@ assignment_expression =
 assignment_left_expression =
     | identifier
     | dot_expression
+
+if_else_expression =
+    | "if" expression ":" statement* ("elif" expression ":" statement*)* ("end" | ("else" expression ":" statement* "end"))
+
+block =
+    | ":" statement* "end"
+    ;
+
+call_expression =
+    | expression "(" ((expression comma)* expression)? ")"
 
 seal_expression = 
     | 'seal' expression
@@ -58,6 +69,6 @@ atom =
 
 number_literal = '0-9'+;
 object_literal = object_modifier? '{' object_literal_entry* '}';
-object_literal_entry = assignment_expression;
+object_literal_entry = assignment_expression comma?;
 
 object_modifier = 'sealed' | 'frozen';
