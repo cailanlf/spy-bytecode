@@ -1,4 +1,83 @@
+
+from typing import TypedDict, Union, List, Optional
 from lex import Token
+
+# --- Node type definitions ---
+class ProgramNode(TypedDict):
+    type: str  # "program"
+    body: List["Node"]
+
+class LetStatementNode(TypedDict):
+    type: str  # "let_statement"
+    name: str
+    value: "Node"
+
+class UnaryExpressionNode(TypedDict):
+    type: str  # "unary_expression"
+    operator: str
+    operand: "Node"
+
+class BinaryExpressionNode(TypedDict):
+    type: str  # "binary_expression"
+    operator: str
+    left: "Node"
+    right: "Node"
+
+class NumberLiteralNode(TypedDict):
+    type: str  # "number_literal"
+    value: str
+
+class StringLiteralNode(TypedDict):
+    type: str  # "string_literal"
+    value: str
+
+class IdentifierNode(TypedDict):
+    type: str  # "identifier"
+    value: str
+
+class IfElseBlock(TypedDict):
+    condition: Optional["Node"]
+    body: List["Node"]
+
+class IfElseExpressionNode(TypedDict):
+    type: str  # "if_else_expression"
+    conditions: List[IfElseBlock]
+
+class CallExpressionNode(TypedDict):
+    type: str  # "call_expression"
+    callee: "Node"
+    arguments: List["Node"]
+
+class BlockNode(TypedDict):
+    type: str  # "block"
+    statements: List["Node"]
+
+class ObjectLiteralNode(TypedDict):
+    type: str  # "object_literal"
+    modifier: Optional[str]
+    entries: List["ObjectLiteralEntryNode"]
+
+class ObjectLiteralEntryNode(TypedDict):
+    type: str  # "object_literal_entry"
+    is_var: bool
+    name: str
+    value: "Node"
+
+Node = Union[
+    ProgramNode,
+    LetStatementNode,
+    UnaryExpressionNode,
+    BinaryExpressionNode,
+    NumberLiteralNode,
+    StringLiteralNode,
+    IdentifierNode,
+    IfElseExpressionNode,
+    CallExpressionNode,
+    BlockNode,
+    ObjectLiteralNode,
+    ObjectLiteralEntryNode,
+]
+# --- End Node type definitions ---
 
 class Parser():
     tokens: list[Token]
@@ -12,8 +91,8 @@ class Parser():
     precedence_unary_minus = 0
     precedence_multiplicative = 1
     precedence_additive = 2
-    precedence_member_access = 3
-    precedence_comparison = 4
+    precedence_comparison = 3
+    precedence_member_access = 4
 
     @staticmethod
     def binary_left_associative_powers(power):
@@ -57,22 +136,25 @@ class Parser():
     #
     ## 
 
-    def parse(self):
+    def parse(self) -> ProgramNode:
         statements = []
 
         while self.peek().type != "eof":
             statements.append(self.parse_statement())
         self.expect("eof")
-        return statements
+        return {
+            "type": "program",
+            "body": statements,
+        }
     
-    def parse_statement(self):
+    def parse_statement(self) -> Node:
         token = self.peek()
         if token.type == "keyword" and token.value == "let":
             return self.parse_let_statement()
         else:
             return self.parse_expression()
         
-    def parse_let_statement(self):
+    def parse_let_statement(self) -> LetStatementNode:
         self.expect("keyword", "let")
         identifier = self.expect("identifier")
         self.expect("operator", "=")
@@ -83,7 +165,7 @@ class Parser():
             "value": expression, 
         }
     
-    def parse_expression(self):
+    def parse_expression(self) -> Node:
         res = self.parse_expression_power(0)
 
         if self.peek().type == "parenthesis" and self.peek().value == "(":
@@ -101,7 +183,7 @@ class Parser():
     # By extension, unary operators must not be separated from their operand by 
     # whitespace.
 
-    def parse_expression_power(self, min_precedence):
+    def parse_expression_power(self, min_precedence) -> Node:
         prefix_precedence = Parser.get_unary_precedence_prefix(self.peek())
 
         if prefix_precedence != 0 and prefix_precedence >= min_precedence:
@@ -148,7 +230,7 @@ class Parser():
 
         return left
     
-    def parse_atomic_expression(self):
+    def parse_atomic_expression(self) -> Node:
         """
             atomic_expression = 
                 | number_literal
@@ -182,7 +264,7 @@ class Parser():
         else:
             raise self.error(f"while parsing atomic: unexpected token {self.peek()}, expected atomic expression")
     
-    def parse_if_else_expression(self):
+    def parse_if_else_expression(self) -> IfElseExpressionNode:
         """
             if_else_expression =
                 | "if" expression ":" statement* ("elif" expression ":" statement*)* ("end" | ("else" expression ":" statement* "end"))
@@ -240,7 +322,7 @@ class Parser():
 
        
     
-    def parse_call_expression(self, callee=None):
+    def parse_call_expression(self, callee=None) -> CallExpressionNode:
         """
             call_expression =
                 | expression "(" ((expression comma)* expression)? ")"
@@ -267,7 +349,7 @@ class Parser():
             "arguments": arguments,
         }
 
-    def parse_block(self):
+    def parse_block(self) -> BlockNode:
         """
             block = 
             | ":" statement* "end"
@@ -285,7 +367,7 @@ class Parser():
             "statements": statements,
         }
 
-    def parse_object_literal(self):
+    def parse_object_literal(self) -> ObjectLiteralNode:
         """
             object_literal = 
                 | ("frozen" | "sealed")? "{" (object_literal_entry)* "}"
@@ -318,7 +400,7 @@ class Parser():
             "entries": entries,
         }
     
-    def parse_object_literal_entry(self):
+    def parse_object_literal_entry(self) -> ObjectLiteralEntryNode:
         """
             object_literal_entry = 
                 | "var"? identifier "=" expression
