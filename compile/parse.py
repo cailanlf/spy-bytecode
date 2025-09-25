@@ -1,98 +1,24 @@
+from tokens import *
+from parsenodes import *
 
-from typing import TypedDict, Union, List, Optional
-from lex import Token
-
-# --- Node type definitions ---
-class ProgramNode(TypedDict):
-    type: str  # "program"
-    body: List["Node"]
-
-class LetStatementNode(TypedDict):
-    type: str  # "let_statement"
-    name: str
-    value: "Node"
-
-class UnaryExpressionNode(TypedDict):
-    type: str  # "unary_expression"
-    operator: str
-    operand: "Node"
-
-class BinaryExpressionNode(TypedDict):
-    type: str  # "binary_expression"
-    operator: str
-    left: "Node"
-    right: "Node"
-
-class NumberLiteralNode(TypedDict):
-    type: str  # "number_literal"
-    value: str
-
-class StringLiteralNode(TypedDict):
-    type: str  # "string_literal"
-    value: str
-
-class IdentifierNode(TypedDict):
-    type: str  # "identifier"
-    value: str
-
-class IfElseBlock(TypedDict):
-    condition: Optional["Node"]
-    body: List["Node"]
-
-class IfElseExpressionNode(TypedDict):
-    type: str  # "if_else_expression"
-    conditions: List[IfElseBlock]
-
-class CallExpressionNode(TypedDict):
-    type: str  # "call_expression"
-    callee: "Node"
-    arguments: List["Node"]
-
-class BlockNode(TypedDict):
-    type: str  # "block"
-    statements: List["Node"]
-
-class ObjectLiteralNode(TypedDict):
-    type: str  # "object_literal"
-    modifier: Optional[str]
-    entries: List["ObjectLiteralEntryNode"]
-
-class ObjectLiteralEntryNode(TypedDict):
-    type: str  # "object_literal_entry"
-    is_var: bool
-    name: str
-    value: "Node"
-
-Node = Union[
-    ProgramNode,
-    LetStatementNode,
-    UnaryExpressionNode,
-    BinaryExpressionNode,
-    NumberLiteralNode,
-    StringLiteralNode,
-    IdentifierNode,
-    IfElseExpressionNode,
-    CallExpressionNode,
-    BlockNode,
-    ObjectLiteralNode,
-    ObjectLiteralEntryNode,
-]
-# --- End Node type definitions ---
+from typing import TypeVar, Generic, Sequence, get_args, cast
+from tokens import PrefixUnaryOperator
 
 class Parser():
-    tokens: list[Token]
+    tokens: Sequence[BaseToken]
     pos: int = 0
 
-    def __init__(self, tokens: list[Token]):
+    def __init__(self, tokens: Sequence[BaseToken]):
         self.tokens = tokens
 
     ##
     # Utilities for pratt parsing
-    precedence_unary_minus = 0
-    precedence_multiplicative = 1
-    precedence_additive = 2
-    precedence_comparison = 3
-    precedence_member_access = 4
+    precedence_assignment = 0
+    precedence_additive = 1
+    precedence_multiplicative = 2
+    precedence_unary_minus = 3
+    precedence_comparison = 4
+    precedence_member_access = 5
 
     @staticmethod
     def binary_left_associative_powers(power):
@@ -107,21 +33,23 @@ class Parser():
         return (power + 1) * 2
     
     @staticmethod
-    def get_unary_precedence_prefix(token: Token):
-        if token.type != "operator": return 0
+    def get_unary_precedence_prefix(token: BaseToken):
+        if not isinstance(token, OperatorToken): return 0
         
         if token.value == "-" or token.value == "+":
             return Parser.unary_power(Parser.precedence_unary_minus)
         else: return 0
 
     @staticmethod
-    def get_unary_precedence_postfix(token: Token):
-        if token.type != "operator": return 0
+    def get_unary_precedence_postfix(token: BaseToken):
+        if type(token) is ParenthesisToken and token.value in ("["):
+            return Parser.unary_power(Parser.precedence_member_access)
 
         return 0
     
-    def get_binary_precedence(token: Token):
-        if token.type != "operator": return (0, 0)
+    @staticmethod
+    def get_binary_precedence(token: BaseToken):
+        if not isinstance(token, OperatorToken): return (0, 0)
         
         if token.value in ("*", "/", "%"):
             return Parser.binary_left_associative_powers(Parser.precedence_multiplicative)
@@ -131,6 +59,8 @@ class Parser():
             return Parser.binary_left_associative_powers(Parser.precedence_member_access)
         elif token.value in ("==", "!=", "<", ">", "<=", ">="):
             return Parser.binary_left_associative_powers(Parser.precedence_comparison)
+        elif token.value in ("="):
+            return Parser.binary_left_associative_powers(Parser.precedence_assignment)
         else:
             return (0, 0)
     #
@@ -139,36 +69,31 @@ class Parser():
     def parse(self) -> ProgramNode:
         statements = []
 
-        while self.peek().type != "eof":
+        while not self.peek_is(EOFToken):
             statements.append(self.parse_statement())
-        self.expect("eof")
-        return {
-            "type": "program",
-            "body": statements,
-        }
+        self.expect(EOFToken)
+        return ProgramNode(body=BlockNode(statements))
     
     def parse_statement(self) -> Node:
-        token = self.peek()
-        if token.type == "keyword" and token.value == "let":
+        if self.peek_is(KeywordToken, "let"):
             return self.parse_let_statement()
         else:
-            return self.parse_expression()
+            return self.parse_expression_statement()
+        
+    def parse_expression_statement(self) -> ExpressionStatementNode:
+        return ExpressionStatementNode(self.parse_expression())
         
     def parse_let_statement(self) -> LetStatementNode:
-        self.expect("keyword", "let")
-        identifier = self.expect("identifier")
-        self.expect("operator", "=")
+        self.expect(KeywordToken, "let")
+        left = self.parse_expression()
+        self.expect(OperatorToken, "=")
         expression = self.parse_expression()
-        return { 
-            "type": "let_statement", 
-            "name": identifier.value,
-            "value": expression, 
-        }
+        return LetStatementNode(left=left, right=expression)
     
     def parse_expression(self) -> Node:
         res = self.parse_expression_power(0)
 
-        if self.peek().type == "parenthesis" and self.peek().value == "(":
+        if self.peek_is(ParenthesisToken, "("): 
             return self.parse_call_expression(callee=res)
         else: return res
         
@@ -187,15 +112,15 @@ class Parser():
         prefix_precedence = Parser.get_unary_precedence_prefix(self.peek())
 
         if prefix_precedence != 0 and prefix_precedence >= min_precedence:
-            operator = self.expect("operator")
+            operator = self.expect(OperatorToken)
             if self.peek().whitespace_before:
                 raise self.error(f"while parsing prefix unary operator: unexpected whitespace before {self.peek()}, expected unary operator or atomic expression")
+            if operator.value not in get_args(PrefixUnaryOperator):
+                raise self.error(f"Invalid unary prefix operator '{operator.value}'")
             operand = self.parse_expression_power(prefix_precedence)
-            left = {
-                "type": "unary_expression",
-                "operator": operator.value,
-                "operand": operand,
-            }
+            value = cast(UnaryOperator, operator.value)
+
+            left = UnaryExpressionNode(operator=value, operand=operand)
         else:
             left = self.parse_atomic_expression()
 
@@ -205,13 +130,23 @@ class Parser():
             if postfix_precedence == 0 or postfix_precedence < min_precedence:
                 break
 
-            operator = self.expect("operator")
+            operator = self.consume()
             operand = left
-            left = {
-                "type": "unary_expression",
-                "operator": operator.value,
-                "operand": operand,
-            }
+
+            if type(operator) is not ParenthesisToken and type(operator) is not OperatorToken:
+                raise self.error("Invalid postfix operator type")
+
+            if operator.value not in get_args(PostfixUnaryOperator):
+                raise self.error(f"Invalid unary postfix operator '{operator.value}'")
+            
+            if operator.value == "[":
+                operand = self.parse_expression()
+                self.expect(ParenthesisToken, ']')
+                left = IndexExpressionNode(left, operand)
+            else:
+                operand = self.parse_expression_power(prefix_precedence)
+                value = cast(UnaryOperator, operator.value)
+                left = UnaryExpressionNode(operator=value, operand=operand)
 
         while True:
             left_precedence, right_precedence = Parser.get_binary_precedence(self.peek())
@@ -219,14 +154,20 @@ class Parser():
             if left_precedence == 0 or left_precedence < min_precedence:
                 break
 
-            operator = self.expect("operator")
+            operator = self.expect(OperatorToken)
+            print(get_args(BinaryOperator))
+            if operator.value not in get_args(BinaryOperator):
+                raise Exception(f"Invalid binary operator '{operator.value}'")
+            
+            value = cast(BinaryOperator, operator.value)
             right = self.parse_expression_power(right_precedence)
-            left = {
-                "type": "binary_expression",
-                "operator": operator.value,
-                "left": left,
-                "right": right,
-            }
+            if value == ".":
+                if type(right) is not IdentifierNode:
+                    raise self.error("Right side of dot expression must be identifier")
+                else:
+                    left = IndexExpressionNode(left, StringLiteralNode(right.value))
+            else:
+                left = BinaryExpressionNode(operator=value, left=left, right=right)
 
         return left
     
@@ -236,30 +177,43 @@ class Parser():
                 | number_literal
                 | string_literal
                 | object_literal
+                | identifier
                 ;
         """
-        if self.peek().type == "number":
-            value = self.expect("number")
-            return {
-                "type": "number_literal",
-                "value": value.value,
-            }
-        elif self.peek().type == "string":
-            value = self.expect("string")
-            return {
-                "type": "string_literal",
-                "value": value.value,
-            }
-        elif self.peek().type == "keyword" and self.peek().value in ("frozen", "sealed") \
-                or self.peek().type == "parenthesis" and self.peek().value == "{":
+        if self.peek_is(NumberToken):
+            value = self.expect(NumberToken)
+            return NumberLiteralNode(value=value.value)
+        
+        elif self.peek_is(StringToken):
+            value = self.expect(StringToken)
+            return StringLiteralNode(value=value.value)
+        
+        elif self.peek_is(KeywordToken, "sealed") or self.peek_is(KeywordToken, "frozen") \
+                or self.peek_is(ParenthesisToken, "{"):
             return self.parse_object_literal()
-        elif self.peek().type == "identifier":
-            value = self.expect("identifier")
-            return {
-                "type": "identifier",
-                "value": value.value,
-            }
-        elif self.peek().type == "keyword" and self.peek().value == "if":
+        
+        elif self.peek_is(KeywordToken, "True") or self.peek_is(KeywordToken, "False"):
+            value = self.expect(KeywordToken)
+            if value.value == "True":
+                return BoolLiteralNode(True)
+            else:
+                return BoolLiteralNode(False)
+            
+        elif self.peek_is(KeywordToken, "None"):
+            value = self.expect(KeywordToken)
+            return NoneLiteralNode()
+        
+        elif self.peek_is(IdentifierToken):
+            value = self.expect(IdentifierToken)
+            return IdentifierNode(value=value.value)
+        
+        elif self.peek_is(ParenthesisToken, "("):
+            value = self.expect(ParenthesisToken)
+            expr = self.parse_expression()
+            self.expect(ParenthesisToken, ")")
+            return expr
+
+        elif self.peek_is(KeywordToken, "if"):
             return self.parse_if_else_expression()
         else:
             raise self.error(f"while parsing atomic: unexpected token {self.peek()}, expected atomic expression")
@@ -269,16 +223,16 @@ class Parser():
             if_else_expression =
                 | "if" expression ":" statement* ("elif" expression ":" statement*)* ("end" | ("else" expression ":" statement* "end"))
         """
-
         
-        self.expect("keyword", "if")
+        self.expect(KeywordToken, "if")
         condition = self.parse_expression()
-        self.expect("punctuation", ":")
+        self.expect(PunctuationToken, ":")
 
         blocks = []
         statements = []
 
-        while not (self.peek().type == "keyword" and self.peek().value in {"elif", "else", "end"}):
+        while not self.peek_is(KeywordToken, "elif") or self.peek_is(KeywordToken, "else") \
+                or self.peek_is(KeywordToken, "end"):
             statements.append(self.parse_statement())
 
         blocks.append({
@@ -286,26 +240,27 @@ class Parser():
             "body": statements,
         })
 
-        while self.peek().type == "keyword" and self.peek().value == "elif":
-            self.expect("keyword", "elif")
+        while self.peek_is(KeywordToken, "elif"):
+            self.expect(KeywordToken, "elif")
             condition = self.parse_expression()
-            self.expect("punctuation", ":")
+            self.expect(PunctuationToken, ":")
             statements = []
 
-            while not (self.peek().type == "keyword" and self.peek().value in {"elif", "else", "end"}):
+            while not self.peek_is(KeywordToken, "elif") or self.peek_is(KeywordToken, "else") \
+                    or self.peek_is(KeywordToken, "end"):
                 statements.append(self.parse_statement())
             
             blocks.append({
                 "condition": condition,
-                "body": statements,
+                "body": BlockNode(statements),
             })
 
-        if self.peek().type == "keyword" and self.peek().value == "else":
-            self.expect("keyword", "else")
-            self.expect("punctuation", ":")
+        if self.peek_is(KeywordToken, "else"):
+            self.expect(KeywordToken, "else")
+            self.expect(PunctuationToken, ":")
             statements = []
 
-            while not (self.peek().type == "keyword" and self.peek().value == "end"):
+            while not self.peek_is(KeywordToken, "end"):
                 statements.append(self.parse_statement())
             
             blocks.append({
@@ -313,14 +268,9 @@ class Parser():
                 "body": statements,
             })
 
-        self.expect("keyword", "end")
+        self.expect(KeywordToken, "end")
 
-        return {
-            "type": "if_else_expression",
-            "conditions": blocks,
-        }
-
-       
+        return IfElseExpressionNode(conditions=[IfElseBlock(condition=block["condition"], body=block["body"]) for block in blocks])
     
     def parse_call_expression(self, callee=None) -> CallExpressionNode:
         """
@@ -330,42 +280,51 @@ class Parser():
 
         if callee is None:
             callee = self.parse_expression()
-        self.expect("parenthesis", "(")
+        self.expect(ParenthesisToken, "(")
 
         arguments = []
-        if not (self.peek().type == "parenthesis" and self.peek().value == ")"):
+        if not self.peek_is(ParenthesisToken, ")"):
             while True:
                 arguments.append(self.parse_expression())
-                if self.peek().type == "comma":
-                    self.expect("comma")
+                if self.peek_is(PunctuationToken, ","):
+                    self.expect(PunctuationToken, ",")
                 else:
                     break
 
-        self.expect("parenthesis", ")")
+        self.expect(ParenthesisToken, ")")
 
-        return {
-            "type": "call_expression",
-            "callee": callee,
-            "arguments": arguments,
-        }
+        return CallExpressionNode(callee=callee, arguments=arguments)
+    
+    def parse_index_expression(self, indexee=None) -> IndexExpressionNode:
+        """
+            index_expression =
+                | expression "[" expression "]"
+        """
+
+        if indexee is None:
+            indexee = self.parse_expression()
+        self.expect(ParenthesisToken, "[")
+
+        index = self.parse_expression()
+
+        self.expect(ParenthesisToken, "]")
+
+        return IndexExpressionNode(indexee=indexee, index=index)
 
     def parse_block(self) -> BlockNode:
         """
             block = 
             | ":" statement* "end"
         """
-        self.expect("punctuation", ":")
+        self.expect(PunctuationToken, ":")
         statements = []
 
-        while not (self.peek().type == "keyword" and self.peek().value == "end"):
+        while not self.peek_is(KeywordToken, "end"):
             statements.append(self.parse_statement())
         
-        self.expect("keyword", "end")
+        self.expect(KeywordToken, "end")
 
-        return {
-            "type": "block",
-            "statements": statements,
-        }
+        return BlockNode(statements=statements)
 
     def parse_object_literal(self) -> ObjectLiteralNode:
         """
@@ -375,77 +334,99 @@ class Parser():
         """
         modifier = None
 
-        if self.peek().type == "keyword" and self.peek().value in {"frozen", "sealed"}:
-            match self.peek().value:
+        if self.peek_is(KeywordToken, "sealed") or self.peek_is(KeywordToken, "frozen"):
+            peeked = cast(KeywordToken, self.peek())
+            match peeked.value:
                 case "frozen":
                     modifier = "frozen"
                 case "sealed":
                     modifier = "sealed"
                 case _:
-                    raise self.error(f"Unexpected modifier {self.peek().value}, expected 'frozen' or 'sealed'")
-            self.expect("keyword")
+                    raise self.error(f"Unexpected modifier {peeked.value}, expected 'frozen' or 'sealed'")
+            self.expect(KeywordToken)
         
-        self.expect("parenthesis", "{")
+        self.expect(ParenthesisToken, "{")
 
         entries = []
 
-        while not (self.peek().type == "parenthesis" and self.peek().value == "}"):
+        while not self.peek_is(ParenthesisToken, "}"):
             entries.append(self.parse_object_literal_entry())
 
-        self.expect("parenthesis", "}")
+        self.expect(ParenthesisToken, "}")
 
-        return {
-            "type": "object_literal",
-            "modifier": modifier,
-            "entries": entries,
-        }
+        return ObjectLiteralNode(modifier=modifier, entries=entries)
     
     def parse_object_literal_entry(self) -> ObjectLiteralEntryNode:
         """
             object_literal_entry = 
-                | "var"? identifier "=" expression
+                | "var"? (identifier | '[' expression ']') "=" expression comma?
                 ;
         """
         is_var = False
 
-        if self.peek().type == "keyword" and self.peek().value == "var":
-            self.expect("keyword", "var")
+        if self.peek_is(KeywordToken, "var"):
+            self.expect(KeywordToken, "var")
             is_var = True
         
-        name = self.expect("identifier")
-        self.expect("operator", "=")
+        # syntax sugar: { a: b } becomes { ["a"]: b }
+        if self.peek_is(IdentifierToken):
+            name_token = self.expect(IdentifierToken)
+            name = StringLiteralNode(name_token.value)
+        else:
+            self.expect(ParenthesisToken, '[')
+            name = self.parse_expression()
+            self.expect(ParenthesisToken, ']')
+
+        self.expect(OperatorToken, "=")
         value = self.parse_expression()
 
-        if self.peek().type == "comma":
-            self.expect("comma")
+        if self.peek_is(PunctuationToken, ","):
+            self.expect(PunctuationToken, ",")
 
-        return {
-            "type": "object_literal_entry",
-            "is_var": is_var,
-            "name": name.value,
-            "value": value,
-        }
+        return ObjectLiteralEntryNode(name=name, value=value, is_var=is_var)
 
-    def peek(self, offset=0):
+    def peek(self, offset=0) -> BaseToken:
         if self.pos + offset < len(self.tokens):
             return self.tokens[self.pos + offset]
         return self.tokens[-1]
     
-    def expect(self, type, value=None):
+    def peek_is(self, typ: type[Token], value=None) -> bool:
+        token = self.peek()
+        if type(token) is not typ:
+            return False
+        elif value is not None and hasattr(token, "value") and token.value != value: # type: ignore
+            return False
+        return True
+    
+    def consume(self):
         token = self.peek()
 
         if token is None:
-            raise self.error(f"Unexpected end of input, expected {type}")
-        if token.type != type:
-            if value == None:
-                raise self.error(f"Unexpected token {token}, expected {type}")
-            else:
-                raise self.error(f"Unexpected token {token}, expected {type} with value {value}")
-        elif value is not None and token.value != value:
-            raise self.error(f"Unexpected token {token}, expected {type} with value {value}")
-        
+            raise self.error(f"Unexpected end of input")
+        token = self.tokens[self.pos]
         self.pos += 1
         return token
+    
+    T = TypeVar('T', bound=Token)
+
+    def expect(self, typ: type[T], value=None) -> T:
+        token = self.peek()
+
+        if token is None:
+            raise self.error(f"Unexpected end of input, expected {typ}")
+        if type(token) is not typ:
+            if value == None:
+                raise self.error(f"Unexpected token {token}, expected {typ}")
+            else:
+                raise self.error(f"Unexpected token {token}, expected {typ} with value {value}")
+        else:
+            if value is not None and not hasattr(token, 'value'):
+                raise self.error(f"Fatal: token {token} has no value attribute, cannot compare to expected value {value}")
+            if value is not None and token.value != value: # type: ignore
+                raise self.error(f"Unexpected token {token}, expected {typ} with value {value}")
+        
+            self.pos += 1
+            return token # type: ignore
     
     def error(self, message: str):
         return Exception(f"Error at index {self.peek().position}: {message}")

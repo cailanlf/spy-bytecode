@@ -1,29 +1,12 @@
-from typing import Literal
+from tokens import *
+
+from typing import Literal, Union, TypeVar
 from dataclasses import dataclass
-
-TokenType = Literal[
-    'number',
-    'string',
-    'identifier',
-    'keyword',
-    'operator',
-    'parenthesis',
-    'comma',
-    'eof'
-]
-
-@dataclass
-class Token():
-    type: TokenType
-    value: str
-    whitespace_before: bool
-    whitespace_after: bool
-    position: tuple[int, int]
 
 class Lexer():
     input: str
     pos: int = 0
-    tokens: list[tuple[TokenType, str, bool]] = []
+    tokens: list[Token] = []
     whitespace_before: bool = False
 
     def __init__(self, input: str):
@@ -37,16 +20,16 @@ class Lexer():
                 self.pos += 1
                 continue
             elif next in ['+', '-', '*', '/', '%', '.']:
-                self.emit('operator', 1)
+                self.emit(OperatorToken, 1)
             elif next in ['=', '!', '<', '>']:
                 if self.pos + 1 < len(self.input) and self.input[self.pos + 1] == '=':
-                    self.emit('operator', 2)
+                    self.emit(OperatorToken, 2)
                 else:
-                    self.emit('operator', 1)
+                    self.emit(OperatorToken, 1)
             elif next in ['(', ')', '{', '}', '[', ']']:
-                self.emit('parenthesis', 1)
+                self.emit(ParenthesisToken, 1)
             elif next == ',':
-                self.emit('comma', 1)
+                self.emit(PunctuationToken, 1)
             elif next == "#":
                 while self.pos < len(self.input) and self.input[self.pos] != '\n':
                     self.pos += 1
@@ -57,20 +40,20 @@ class Lexer():
             elif next == '"' or next == "'":
                 self.lex_string()
             elif next == ':':
-                self.emit('punctuation', 1)
+                self.emit(PunctuationToken, 1)
             elif next.isdigit():
                 self.lex_number()
             else: 
                 raise Exception(f"Unexpected character: {next}")
 
-        self.tokens.append(Token('eof', '', False, False, (self.pos, self.pos)))
+        self.tokens.append(EOFToken(whitespace_before=False, whitespace_after=False, position=(self.pos, self.pos)))
         return self.tokens 
     
     def lex_number(self):
         index = self.pos
         while index < len(self.input) and self.input[index].isdigit():
             index += 1
-        self.emit('number', index - self.pos)
+        self.emit(NumberToken, index - self.pos)
 
     def lex_identifier(self):
         index = self.pos
@@ -78,10 +61,10 @@ class Lexer():
             index += 1
         value = self.input[self.pos:index]
 
-        if value in {"let", "var", "end", "freeze", "seal", "frozen", "sealed", "if", "else"}:
-            self.emit('keyword', index - self.pos)
+        if value in {"let", "var", "end", "freeze", "seal", "frozen", "sealed", "if", "else", 'True', 'False', 'None'}:
+            self.emit(KeywordToken, index - self.pos)
         else:
-            self.emit('identifier', index - self.pos)
+            self.emit(IdentifierToken, index - self.pos)
 
     def lex_string(self):
         index = self.pos + 1 # + 1 to skip opening quote
@@ -102,13 +85,18 @@ class Lexer():
 
         if index >= len(self.input):
             raise Exception("Unterminated string literal")
-        self.emit('string', index + 1 - self.pos) # + 1 to include closing quote
-    
-    def emit(self, type: TokenType, length: int):
+        self.emit_custom_value(StringToken, index + 1 - self.pos, value=self.input[self.pos + 1 : index]) # + 1 to include closing quote
+
+    def emit_custom_value[T](self, typ: type[Token], length: int, value: str):
         if len(self.tokens) > 0:
             self.tokens[-1].whitespace_after = self.whitespace_before
-        token = Token(type, self.input[self.pos:self.pos+length], self.whitespace_before, False, 
-                      (self.pos, self.pos + length))
+        token = typ(value=value, # type: ignore
+                    whitespace_before=self.whitespace_before, 
+                    whitespace_after=False, 
+                    position=(self.pos, self.pos + length))
         self.tokens.append(token)
         self.pos += length
         self.whitespace_before = False
+        
+    def emit[T](self, typ: type[Token], length: int):
+        self.emit_custom_value(typ, length, self.input[self.pos:self.pos+length])

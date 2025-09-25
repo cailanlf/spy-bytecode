@@ -10,4 +10,4 @@ SPY modules are serialized representations of objects.
 The header contains metadata about the module.
 
 ## Body
-Contains top-level code that is run when this file is loaded.
+A body is an individually compilable unit of code within the language.

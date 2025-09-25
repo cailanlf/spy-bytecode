@@ -1,0 +1,5 @@
+let string = frozen {
+    from_bytes = ():
+        
+    end
+}

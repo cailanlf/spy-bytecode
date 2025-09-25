@@ -3,7 +3,8 @@ program =
 
 statement = 
     | let_statement
-    | expression
+    | expression_statement
+    | 
     ;
 
 expression = 
@@ -32,6 +33,7 @@ assignment_expression =
 assignment_left_expression =
     | identifier
     | dot_expression
+    | index_expression
 
 if_else_expression =
     | "if" expression ":" statement* ("elif" expression ":" statement*)* ("end" | ("else" expression ":" statement* "end"))
@@ -42,6 +44,9 @@ block =
 
 call_expression =
     | expression "(" ((expression comma)* expression)? ")"
+
+index_expression =
+    | expression "[" expression "]"
 
 seal_expression = 
     | 'seal' expression
@@ -65,10 +70,15 @@ atom =
     | number_literal
     | string_literal
     | object_literal
+    | bool_literal
+    | none_literal
+    | identifier
     ;
 
 number_literal = '0-9'+;
 object_literal = object_modifier? '{' object_literal_entry* '}';
-object_literal_entry = assignment_expression comma?;
+object_literal_entry = var? (identifier | '[' expression ']') = expression comma?;
+bool_literal = 'True' | 'False';
+none_literal = 'None';
 
 object_modifier = 'sealed' | 'frozen';

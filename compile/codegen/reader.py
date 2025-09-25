@@ -23,43 +23,43 @@ class Reader:
 
     def read_uint8(self, annotation="") -> int:
         """Read an 8-bit unsigned integer and advance the stream by 1 byte."""
-        return self._read("<B", 1, annotation)
+        return self._read("!B", 1, annotation)
 
     def read_uint16(self, annotation="") -> int:
         """Read a 16-bit unsigned integer and advance the stream by 2 bytes."""
-        return self._read("<H", 2, annotation)
+        return self._read("!H", 2, annotation)
 
     def read_uint32(self, annotation="") -> int:
         """Read a 32-bit unsigned integer and advance the stream by 4 bytes."""
-        return self._read("<I", 4, annotation)
+        return self._read("!I", 4, annotation)
 
     def read_uint64(self, annotation="") -> int:
         """Read a 64-bit unsigned integer and advance the stream by 8 bytes."""
-        return self._read("<Q", 8, annotation)
+        return self._read("!Q", 8, annotation)
 
     def read_int8(self, annotation="") -> int:
         """Read an 8-bit signed integer and advance the stream by 1 byte."""
-        return self._read("<b", 1, annotation)
+        return self._read("!b", 1, annotation)
 
     def read_int16(self, annotation="") -> int:
         """Read a 16-bit signed integer and advance the stream by 2 bytes."""
-        return self._read("<h", 2, annotation)
+        return self._read("!h", 2, annotation)
 
     def read_int32(self, annotation="") -> int:
         """Read a 32-bit signed integer and advance the stream by 4 bytes."""
-        return self._read("<i", 4, annotation)
+        return self._read("!i", 4, annotation)
 
     def read_int64(self, annotation="") -> int:
         """Read a 64-bit signed integer and advance the stream by 8 bytes."""
-        return self._read("<q", 8, annotation)
+        return self._read("!q", 8, annotation)
 
     def read_float32(self, annotation="") -> float:
         """Read a 32-bit floating-point number and advance the stream by 4 bytes."""
-        return self._read("<f", 4, annotation)
+        return self._read("!f", 4, annotation)
 
     def read_float64(self, annotation="") -> float:
         """Read a 64-bit floating-point number and advance the stream by 8 bytes."""
-        return self._read("<d", 8, annotation)
+        return self._read("!d", 8, annotation)
 
     def read_varsize1632(self, annotation="") -> int:
         """
@@ -67,9 +67,9 @@ class Reader:
         If the value fits into 16 bits, read it as such; otherwise, read it as a 32-bit integer.
         Advance the stream by 2 or 4 bytes.
         """
-        value = self._read("<H", 2, annotation)
+        value = self._read("!H", 2, annotation)
         if value == 65535:
-            value = self._read("<I", 4, annotation)
+            value = self._read("!I", 4, annotation)
         return value
 
     def read_utf8(self, length: int, annotation="") -> str:

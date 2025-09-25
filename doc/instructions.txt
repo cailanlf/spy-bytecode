@@ -1,0 +1,77 @@
+Bytecode Instructions
+
+MAKE_OBJECT     
+Creates a new empty object and pushes it to the stack.
+    stk: ... -> [object]
+
+
+LOAD_GLOBAL <uint16 @GLOBAL_NAME_TABLE index>    
+Loads a global variable given an index into the GLOBAL_NAME_TABLE
+    stk: ... -> [object]
+
+LOAD_LOCAL <uint16 @LOCAL_NAME_TABLE index>
+Loads a local variable given an index into the LOCAL_NAME_TABLE
+    stk: ... -> [object]
+
+LOAD_NAME <uint16 @NAME_TABLE index>
+Loads a local or global variable given an index into the NAME_TABLE
+    stk: ... -> [object]
+
+LOAD_CONST <uint16 @CONST_TABLE index>
+Loads an object from the constants table
+    stk: ... -> [object]
+
+STORE_GLOBAL <uint16 @GLOBAL_NAME_TABLE index>
+Store a global variable given an index into the GLOBAL_NAME_TABLE
+    stk: ... [object] -> ...
+
+STORE_LOCAL <uint16 @LOCAL_NAME_TABLE index>
+Stores a local variable given an index into the LOCAL_NAME_TABLE
+    stk: ... [object] -> ...
+
+STORE_NAME <uint16 @NAME_TABLE index>
+Stores a local or global variable given an index into the NAME_TABLE
+    stk: ... [object] -> ...
+
+
+LOAD_ATTR
+Load an attribute TOS from the object at TOS1. Keeps the object on the stack.
+    stk: ... [object] [key] -> ... [object] [value]
+
+STORE_ATTR
+Store a value TOS with key TOS1 in the object at TOS2. Keep the object on the stack.
+    stk: ... [object] [key] [value] -> [object]
+
+FREEZE
+Freezes the object on the top of the stack.
+    stk: ... [object] -> ... [object]
+
+SEAL
+Seals the object on the top of the stack.
+    stk: ... [object] -> ... [object]
+
+
+JUMP_FORWARD <uint16 offset>
+Jumps forward by the specified offset.
+
+JUMP_BACKWARD <uint16 offset>
+Jumps backward by the specified offset.
+
+JUMP_IF_TRUE <uint16 offset>
+Jumps forward by the specified offset if TOS is True.
+    stk: ... [cond] -> ...
+
+JUMP_IF_FALSE <uint16 offset>
+Jumps backward by the specified offset if TOS is False.
+    stk: ... [cond] -> ...
+
+
+CALL <uint16 argcount>
+Calls a function with the given arguments. Arguments are arranged on the stack
+in reverse order (the last argument is on top), and the function object at the 
+bottom.
+    stk: ... function arg[argcount] ... arg[0] -> ... return
+
+RETURN
+Return the value at the top of the stack.
+    stk: ... [return] -> ...

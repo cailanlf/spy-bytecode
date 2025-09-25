@@ -4,13 +4,13 @@
 let Object = frozen {
     # Checks if this object is frozen.
     # @return `true` if the object is frozen, otherwise false.
-    is_frozen = ():
+    is_frozen = func ():
         __internal.object.is_frozen(this)
     end
 
     # Checks if this object is sealed.
     # @return `true` if the object is sealed, otherwise false.
-    is_sealed = ():
+    is_sealed = func ():
         __internal.object.is_sealed(this)
     end
 
@@ -18,18 +18,22 @@ let Object = frozen {
     #
     # Note that this also copies the frozen / sealed status of an object. If you
     # wish to copy all of the properties instead, use @see{copy_to}
-    clone = ():
+    clone = func ():
         var object = {}
         
         for key, val in this:
             is_var = this.is_var(key)
-            object.set(key, val, var=is_var)
+            if is_var:
+                var object[key] = val
+            else:
+                object[key] = val
+            end
         end
         
         if this.is_frozen():
-            object = freeze object
+            freeze object
         elif this.is_sealed():
-            object = seal object
+            seal object
         end
         
         object

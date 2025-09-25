@@ -1,23 +1,23 @@
 # Implements the Number prototype.
 
 let Number = frozen { 
-    op_add = (other):
+    op_add = func (other):
         __internal.number.add(this, other)
     end
 
-    op_sub = (other):
+    op_sub = func (other):
         __internal.number.sub(this, other)
     end
 
-    op_mul = (other):
+    op_mul = func (other):
         __internal.number.mul(this, other)
     end
 
-    op_div = (other):
+    op_div = func (other):
         __internal.number.div(this, other)
     end
 
-    op_mod = (other):
+    op_mod = func (other):
         __internal.number.mod(this, other)
     end
 }
