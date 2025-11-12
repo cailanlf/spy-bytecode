@@ -17,65 +17,99 @@ class Lexer():
 
         while (next := self.peek()) is not None:
             match next:
+                case '&' if self.peek(1) == '&' and self.peek(2) == '&':
+                    self.emit('andandand', 3)
+
+                case '~' if self.peek(1) == '~' and self.peek(2) == '~':
+                    self.emit('tildetildetilde', 3)
+
+                case '|' if self.peek(1) == '|' and self.peek(2) == '|':
+                    self.emit('pipepipepipe', 3)
+
+                case '-' if self.peek(1) == ">":
+                    self.emit('rightarrow', 2)
+
+                case '>' if self.peek(1) == '=':
+                    self.emit('greaterequals', 2)
+
+                case '<' if self.peek(1) == '=':
+                    self.emit('lessequals', 2)
+
+                case '<' if self.peek(1) == '>':
+                    self.emit('lessgreater', 2)
+
+                case '<' if self.peek(1) == '-':
+                    self.emit('leftarrow', 2)
+            
                 case '(':
                     self.emit('lparen', 1)
+
                 case ')':
                     self.emit('rparen', 1)
+
                 case '{':
                     self.emit('lcurly', 1)
+
                 case '}':
                     self.emit('rcurly', 1)
+
                 case '[':
                     self.emit('lbracket', 1)
+
                 case ']':
                     self.emit('rbracket', 1)
+
                 case ',':
                     self.emit('comma', 1)
+
                 case '.':
                     self.emit('period', 1)
+
                 case '+':
                     self.emit('plus', 1)
+
                 case '-':
                     self.emit('minus', 1)
+
                 case '/':
                     self.emit('slash', 1)
+
                 case '|':
                     self.emit('pipe', 1)
+
                 case '*':
                     self.emit('asterisk', 1)
+
                 case '>':
-                    if self.peek(1) == '=':
-                        self.emit('greaterequals', 2)
-                    else:
-                        self.emit('greater', 1)
+                    self.emit('greater', 1)
+                
                 case '<':
-                    if self.peek(1) == '=':
-                        self.emit('lessequals', 2)
-                    else:
-                        self.emit('less', 1)
+                    self.emit('less', 1)
+                
                 case '!':
-                    if self.peek(1) == '!':
-                        self.emit('bangequals', 2)
-                    else:
-                        self.emit('bang', 1)
+                    self.emit('bang', 1)
+
                 case '=':
-                    if self.peek(1) == '=':
-                        self.emit('equalsequals', 2)
                     self.emit('equals', 1)
+
                 case ':':
                     self.emit('colon', 1)
+
+                case _ if next.isdigit():
+                    self.lex_number()
+                
+                case _ if next.isalpha() or next == '_':
+                    self.lex_identifier()
+
+                case _ if next == "'" or next == '"':
+                    self.lex_string()
+
+                case _ if next == '\t' or next == '\r' or next == ' ' or next == '\n':
+                    self.whitespace_before = True
+                    self.consume()
+
                 case _:
-                    if next.isdigit():
-                        self.lex_number()
-                    elif next.isalpha() or next == '_':
-                        self.lex_identifier()
-                    elif next == '\t' or next == '\r' or next == ' ' or next == '\n':
-                        self.whitespace_before = True
-                        self.consume()
-                    elif next == "'" or next == '"':
-                        self.lex_string()
-                    else:
-                        raise Exception("lexer: unrecognized character")
+                    raise Exception("lexer: unrecognized character")
         
         self.emit('eof', 0)
         return self.tokens

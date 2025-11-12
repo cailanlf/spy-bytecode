@@ -73,8 +73,7 @@ binary-expression =
     | expression, binary-operator, expression;
 
 binary-operator = 
-    | '+' | '-' | '*' | '/' | '==' | '!=' | '>' | '>=' | '<' | '<=' | 'and' | 'or'
-    ;
+    | '+' | '-' | '*' | '/' | '=' | '<>' | '>' | '>=' | '<' | '<=' | 'and' | 'or' | '&&&' | '|||' | '^^^' | '<-';
 
 prefix-expression =
     | prefix-operator, expression;
@@ -105,6 +104,12 @@ continue-expression =
 
 call-expression =
     expression, '(', argument-list, ')';
+
+index-expression =
+    expression, '[', expression, ']';
+
+assignment-expression =
+    identifier, '<-', expression;
 
 argument-list = 
     [argument, {",", argument}, [','] ];
