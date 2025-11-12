@@ -1,0 +1,126 @@
+(* 
+    nonterminals marked with inlined do not physically exist as concrete node types;
+    they are simply categories to enhance type checking and improve expressiveness.
+*)
+
+program = top-level-statement+;
+
+(* inlined *)
+top-level-statement = 
+    | expression-statement
+    | let-statement;
+
+let-statement =
+    | "let", ["var"], identifier, "=", expression;
+
+expression-statement =
+    | expression;
+
+(* inlined *)
+expression = 
+    | prefix-expression
+    | postfix-expression
+    | paren-expression
+    | binary-expression
+    | atomic-expression
+    | if-else-expression
+    | loop-expression
+    | break-expression
+    | call-expression
+    ;
+
+(* inlined *)
+atomic-expression =
+    | identifier-expression
+    | number-literal-expression
+    | object-literal-expression
+    ;
+
+number-literal-expression =
+    | number-literal
+    ;
+
+identifier-expression =
+    | identifier
+    ;
+
+object-literal-expression = 
+    | ["const"], "{", {object-literal-entry}, "}"
+    ;
+
+object-literal-entry = 
+    | [ "const" | "var" ], expression, ":", expression
+    ;
+
+bool-literal-expression =
+    | bool-literal
+    ;
+
+bool-literal = "true" | "false";
+number-literal = digit+;
+identifier = (alpha | "_"), {alpha | digit | "_"};
+string-literal = "";
+
+digit = "0"|"1"|"2"|"3"|"4"|"5"|"6"|"7"|"8"|"9";
+alpha = 
+    | "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M"
+    | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z"
+    | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m"
+    | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" 
+    ;
+
+binary-expression =
+    | expression, binary-operator, expression;
+
+binary-operator = 
+    | '+' | '-' | '*' | '/' | '==' | '!=' | '>' | '>=' | '<' | '<=' | 'and' | 'or'
+    ;
+
+prefix-expression =
+    | prefix-operator, expression;
+    
+postfix-expression = 
+    | expression, postfix-operator;
+
+prefix-operator =
+    | '-' | '+' | '!';
+
+postfix-operator =;
+
+if-else-expression =
+    "if", expression, ":", block, 
+    {"elif", expression, ":", block}, 
+    ["else", ":", block], 
+    "end"
+    ;
+
+loop-expression = 
+    | "loop", ":", block, "end";
+
+break-expression =
+    | "break", ["with", expression];
+
+continue-expression =
+    | "continue";
+
+call-expression =
+    expression, '(', argument-list, ')';
+
+argument-list = 
+    [argument, {",", argument}, [','] ];
+
+argument = 
+    expression;
+
+function-literal =
+    '|', parameter-list, '|', ':', block, 'end';
+
+parameter-list = 
+    [parameter, {",", parameter}, [','] ];
+
+parameter = 
+    identifier;
+
+(* semantically introduces a new scope *)
+block = 
+    {statement};
